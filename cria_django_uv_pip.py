@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
-Script interativo para criar um projeto Django usando uv no macOS, Ubuntu, Fedora ou Windows (WSL).
+Script interativo para criar um projeto Django usando uv ou pip.
+Compatível com macOS, Ubuntu/Debian, Fedora, e Windows (WSL).
+
 Autor: ChatGPT (GPT-5)
 """
 
@@ -55,7 +57,7 @@ def write_gitignore(project_dir: Path):
     gi = project_dir / ".gitignore"
     gi.write_text(
         "# Python\n__pycache__/\n*.py[cod]\n*.sqlite3\n.DS_Store\n"
-        "\n# uv venv\n.venv/\n"
+        "\n# venv / uv\n.venv/\n"
         "\n# Django\nstaticfiles/\nmedia/\n.env\n"
     )
 
@@ -73,7 +75,7 @@ def tweak_allowed_hosts(settings_path: Path):
 
 
 def main():
-    print("🐍 Criador de Projeto Django com uv\n")
+    print("🐍 Criador de Projeto Django\n")
 
     print("Selecione seu sistema operacional:")
     print("  [1] macOS")
@@ -89,6 +91,21 @@ def main():
 
     base_dir = input("📁 Diretório onde criar (Enter = atual): ").strip() or "."
 
+    # Escolha entre uv e pip
+    print("\n💡 Deseja usar qual gerenciador de ambiente e pacotes?")
+    print("  [1] uv (recomendado - mais rápido)")
+    print("  [2] pip (tradicional do Python)")
+    tool_choice = input("👉 Digite o número correspondente: ").strip()
+
+    if tool_choice == "1":
+        tool = "uv"
+        uv = ensure_uv(system_choice)
+    elif tool_choice == "2":
+        tool = "pip"
+    else:
+        print("❌ Opção inválida. Saindo.")
+        sys.exit(1)
+
     run_server = input("🚀 Rodar servidor ao final? (s/n): ").strip().lower() == "s"
 
     project_root = Path(base_dir).expanduser().resolve() / name
@@ -97,18 +114,23 @@ def main():
         sys.exit(1)
     project_root.mkdir(parents=True, exist_ok=True)
 
-    # verificar uv
-    uv = ensure_uv(system_choice)
-
-    print("\n⚙️ Criando ambiente virtual com uv…")
-    run([uv, "venv", ".venv"], cwd=str(project_root))
-
-    venv_bin = project_root / ".venv" / "bin"
-    py = venv_bin / "python"
-    django_admin = venv_bin / "django-admin"
-
-    print("📦 Instalando Django…")
-    run([uv, "pip", "install", "django>=5.0,<6.0"], cwd=str(project_root))
+    if tool == "uv":
+        print("\n⚙️ Criando ambiente virtual com uv…")
+        run([uv, "venv", ".venv"], cwd=str(project_root))
+        venv_bin = project_root / ".venv" / "bin"
+        py = venv_bin / "python"
+        django_admin = venv_bin / "django-admin"
+        print("📦 Instalando Django…")
+        run([uv, "pip", "install", "django>=5.0,<6.0"], cwd=str(project_root))
+    else:
+        print("\n⚙️ Criando ambiente virtual com venv…")
+        run([sys.executable, "-m", "venv", ".venv"], cwd=str(project_root))
+        venv_bin = project_root / ".venv" / "bin"
+        py = venv_bin / "python"
+        print("📦 Instalando Django…")
+        run([str(py), "-m", "pip", "install", "--upgrade", "pip"])
+        run([str(py), "-m", "pip", "install", "django>=5.0,<6.0"], cwd=str(project_root))
+        django_admin = venv_bin / "django-admin"
 
     print("🏗️ Criando projeto Django…")
     run([str(django_admin), "startproject", name, "."], cwd=str(project_root))
@@ -124,15 +146,20 @@ def main():
     print(f"📂 Local: {project_root}")
     print("\nPróximos passos:")
     print(f"  cd {project_root}")
-    print("  uv run python manage.py runserver\n")
+    if tool == "uv":
+        print("  uv run python manage.py runserver\n")
+    else:
+        print("  source .venv/bin/activate")
+        print("  python manage.py runserver\n")
 
     if run_server:
         print("🚀 Iniciando servidor de desenvolvimento (Ctrl+C para parar)…")
-        run(
-            [uv, "run", "python", "manage.py", "runserver", "0.0.0.0:8000"],
-            cwd=str(project_root),
-            check=False,
-        )
+        if tool == "uv":
+            run([uv, "run", "python", "manage.py", "runserver", "0.0.0.0:8000"],
+                cwd=str(project_root), check=False)
+        else:
+            run([str(py), "manage.py", "runserver", "0.0.0.0:8000"],
+                cwd=str(project_root), check=False)
 
 
 if __name__ == "__main__":
